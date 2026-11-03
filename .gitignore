@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Environment and secrets — never commit a real .env
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+
+# Build and local output
+dist/
+build/
+*.log
+Acceptance_Test_Report_*.md
+pytest-report.xml
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Warm cache — built by backend/scripts/precompute.py during the deploy build, never committed.
+# It is ~40 MB of trained models and replay nodes, and it is specific to a model version.
+backend/.cache/
+*.pkl

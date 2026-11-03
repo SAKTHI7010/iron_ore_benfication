@@ -1,0 +1,114 @@
+# Render Blueprint — ONE-CLICK deployment of BOTH Backend API + Operator Desk Frontend.
+#
+# How to deploy on Render (takes < 30 seconds of setup):
+#   1. Open https://dashboard.render.com -> New + -> Blueprint
+#   2. Connect repository: https://github.com/SAKTHI7010/iron_ore_benfication
+#   3. Click "Apply" — ZERO manual environment variables or URL copy-pasting needed!
+#
+# How auto-connection works:
+#   - `iron-ore-beneficiation-web` uses Render's `fromService` (`property: host`) to inject the
+#     exact hostname of `iron-ore-beneficiation-api` into `BACKEND_HOST`, and `write-config.mjs`
+#     automatically builds `https://<slug>.onrender.com` into `frontend/config.js`.
+#   - `iron-ore-beneficiation-api` enables `ALLOWED_ORIGIN_REGEX: https://.*\.onrender\.com` so
+#     CORS allows the frontend CDN URL automatically on the very first boot.
+
+services:
+  # ------------------------------------------------------------------ 1. FastAPI Digital Twin Engine
+  - type: web
+    name: iron-ore-beneficiation-api
+    runtime: python
+    plan: free
+    region: singapore
+    branch: main
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt && python scripts/precompute.py
+    startCommand: >-
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+      --workers 1 --timeout-keep-alive 180
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: MODEL_VERSION
+        value: OBDT-2026.10.5
+      - key: DEMO_MODE
+        value: "true"
+      - key: ALLOWED_ORIGINS
+        value: http://localhost:8080
+      - key: ALLOWED_ORIGIN_REGEX
+        value: https://.*\.onrender\.com
+      - key: HISTORIAN_TYPE
+        value: mock
+      - key: WARM_ON_START
+        value: "true"
+      - key: WARM_HYBRID
+        value: "true"
+      - key: HYBRID_SAMPLES
+        value: "160"
+      - key: REPLAY_STEPS_PER_HOUR
+        value: "1"
+      - key: OPTIMIZER_MAX_EVALS
+        value: "120"
+      - key: MONTE_CARLO_SAMPLES
+        value: "12"
+
+  # ------------------------------------------------------------------ 2. Operator Desk Static Site
+  - type: web
+    name: iron-ore-beneficiation-web
+    runtime: static
+    branch: main
+    rootDir: frontend
+    buildCommand: node scripts/write-config.mjs
+    staticPublishPath: .
+    autoDeploy: true
+    pullRequestPreviewsEnabled: false
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /config.js
+        name: Cache-Control
+        value: no-cache
+      - path: /vendor/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /data/mock/*
+        name: Cache-Control
+        value: public, max-age=86400
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=604800
+      - path: /data/mock/*
+        name: Content-Type
+        value: application/octet-stream
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: BACKEND_HOST
+        fromService:
+          type: web
+          name: iron-ore-beneficiation-api
+          property: host
+      - key: APP_ENV
+        value: production
+      - key: MOCK_MODE
+        value: auto
+      - key: AUTH_MODE
+        value: none
+      - key: REQUEST_TIMEOUT_S
+        value: "65"
+      - key: LONG_TIMEOUT_S
+        value: "300"
